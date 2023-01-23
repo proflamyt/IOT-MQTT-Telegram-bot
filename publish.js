@@ -1,10 +1,21 @@
-import * as mqtt from "mqtt"
+const mqtt = require('mqtt');
+var jwt = require('jsonwebtoken');
+
 const clientId = 'mqttjs_' + Math.random().toString(8).slice(2, 4) 
 
+const payloa = {
+  sub: 1,
+  email: "email",
+  scope: 'aedes-write aedes-read'
+ }
+ const secret = 'ola'
+ const token = jwt.sign(payloa, secret, {
+  expiresIn: '2 days',
+});
 
 const client = mqtt.connect('mqtt://localhost:1883', {
-  username: 'your-jwt-token',
-  password: '',
+  username: 'oauth2',
+  password: token,
   clientId: clientId,
   clean: false, reconnectPeriod: 1
 });

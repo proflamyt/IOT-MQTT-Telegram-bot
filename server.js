@@ -1,61 +1,96 @@
-import * as mqtt from "mqtt"
-import * as jwt from 'jsonwebtoken'
-require('dotenv').config() 
+const net = require('net');
+const Aedes = require('aedes');
+const jwt = require('jsonwebtoken');
+
+const server = net.createServer();
+const aedes = new Aedes();
+
+const secret = 'ola' //process.env.SECRET_OR_KEY;
 
 
-
-
-function verifyJWT(token) {
-  try {
-    const decoded = jwt.verify(token, 'secret');
-    return true;
-  } catch (err) {
-    return false;
+aedes.authenticate = (client, username, password, callback) => {
+  if (username === 'oauth2') {
+    //console.log(password)
+    return jwt.verify(password.toString(), secret, (error, token) => {
+      if (error) {
+        return callback(error, false);
+      }
+      client.token = token;
+      return callback(null, true);
+    });
   }
+
+  return callback(null, false);
+};
+
+function checkAnyScope(client, ...requiredScopes) {
+  if (typeof client.token.scope !== 'string') {
+    throw new TypeError('Token contains no scope');
+  }
+
+  const tokenScopes = client.token.scope.split(' ');
+  console.log(tokenScopes)
+  for (const requiredScope of requiredScopes) {
+    if (tokenScopes.includes(requiredScope)) {
+      return;
+    }
+  }
+
+  throw new Error('Insufficient to permissions to publish message');
 }
 
-const server = mqtt.createServer(function(client) {
-  // Extract the JWT token from the client's MQTT username
-  const token = client.username;
-  if (!verifyJWT(token)) {
-    // If the token is invalid, close the connection
-    client.stream.end();
-    return;
+aedes.authorizePublish = (client, packet, callback) => {
+  if (client.token instanceof Object) {
+    try {
+      checkAnyScope(client, 'aedes-write');
+      return callback(null);
+    } catch (error) {
+      return callback(error);
+    }
   }
-  console.log(client.clientId)
 
-  // If the token is valid, allow the client to connect
-  client.on('connect', function(packet) {
-    // ...
-  });
+  callback(new Error('Cannot publish'));
+};
 
-  client.on('publish', function(packet) {
+aedes.authorizeSubscribe = (client, subscription, callback) => {
+  if (client.token instanceof Object) {
+    try {
+      checkAnyScope(client, 'aedes-read');
 
-    server.clients.forEach(function(c) {
-        if (c.subscriptions[client.clientId]) {
-          c.publish({ topic: client.clientId, payload: packet.payload });
-        }
-      });
-    
-  });
-
-  client.on('subscribe', function(packet) {
-    
-    console.log('Client', client.clientId, 'subscribed to:', packet.subscriptions);
-    
-    const publisherClientId = packet.subscriptions[0].topic
-    server.clients.forEach(function(c) {
-        if (c.clientId === publisherClientId) {
-          c.subscribe({ topic: client.clientId, qos: packet.subscriptions[0].qos });
+      return callback(null, subscription);
+    } 
+    catch (error) {
+      return callback(error);
+    }
   }
-})
-  });
-
-  client.on('unsubscribe', function(packet) {
-    // ...
-  });
+  
+  callback(new Error('Cannot subscribe'));
+};
 
 
-});
+// aedes.on('publish', function({topic, payload}) {
+//     console.log("broker routing published message", topic, payload?.toString());
+// });
+
+
+// aedes.on('subscribe', (subscriptions, client) => {
+//     subscriptions.forEach((sub) => {
+//       console.log(`Client ${client.id} subscribed to ${sub.topic}`)
+//       // Publish a message to the topic the client subscribed to
+//       aedes.publish({
+//         topic: sub.topic,
+//         payload: `Welcome to ${sub.topic}!`,
+//         qos: 1,
+//         retain: false,
+//         client
+//       })
+//     })
+//   })
+
+server.on('connection', aedes.handle);
+server.on('error', console.error);
+
+aedes.on('clientError', (client, error) => console.error(`CLIENT ${error}`));
+aedes.on('connectionError', (client, error) => console.error(`ConneCTION ${error}`));
 
 server.listen(1883);
