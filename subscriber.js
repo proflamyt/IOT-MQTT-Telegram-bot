@@ -6,7 +6,7 @@ const secret = 'ola'
 const payload = {
   sub: 1,
   email: "email",
-  scope: 'aedes-write aedes-read'
+  scope: 'test/connection'
  }
  const token = jwt.sign(payload, secret, {
   expiresIn: '2 days',
@@ -20,6 +20,8 @@ const client = mqtt.connect('mqtt://localhost:1883', {
   clientId: 1123
 });
 
+
+
 client.on('connect', function() {
   console.log('Connected to MQTT broker');
 
@@ -27,8 +29,10 @@ client.on('connect', function() {
   client.subscribe('test/connection' , function(err) {
     if (!err) {
       console.log('Subscribed to topic');
-    }
-  });
+
+    }}
+    
+    );
 
   client.on('message', (topic, message, packet) => { 
     console.log(packet, packet.payload.toString()); 
@@ -39,5 +43,15 @@ client.on('connect', function() {
     
 });
 
+client.on('close', function(){
+  console.log("connection closed")
+  client.end()
+  })
+
 
 });
+
+client.on('close', function(){
+  console.log("connection closed")
+  client.end()
+  })

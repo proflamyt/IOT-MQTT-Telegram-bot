@@ -6,7 +6,7 @@ const clientId = 'mqttjs_' + Math.random().toString(8).slice(2, 4)
 const payloa = {
   sub: 1,
   email: "email",
-  scope: 'aedes-write aedes-read'
+  scope: 'test/connection'
  }
  const secret = 'ola'
  const token = jwt.sign(payloa, secret, {
@@ -22,7 +22,7 @@ const client = mqtt.connect('mqtt://localhost:1883', {
 
 
 const topicName = 'test/connection' 
-const payload = {1: "Hello world", 2: "Welcome to the test connection"} 
+const payload = {jwt: "Hello world", state: "Welcome to the test connection"} 
 
 client.on('connect', function() {
   console.log('Connected to MQTT broker');
@@ -33,6 +33,11 @@ client.on('connect', function() {
       console.log('Message published');
     }
   });
+
+  client.on('close', function(){
+    console.log("connection closed")
+    client.end()
+    })
 
 
 });

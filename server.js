@@ -9,6 +9,9 @@ const secret = 'ola' //process.env.SECRET_OR_KEY;
 
 
 aedes.authenticate = (client, username, password, callback) => {
+  
+  // console.log(client)
+
   if (username === 'oauth2') {
     //console.log(password)
     return jwt.verify(password.toString(), secret, (error, token) => {
@@ -18,10 +21,12 @@ aedes.authenticate = (client, username, password, callback) => {
       client.token = token;
       return callback(null, true);
     });
+
   }
 
   return callback(null, false);
 };
+
 
 function checkAnyScope(client, ...requiredScopes) {
   if (typeof client.token.scope !== 'string') {
@@ -29,7 +34,7 @@ function checkAnyScope(client, ...requiredScopes) {
   }
 
   const tokenScopes = client.token.scope.split(' ');
-  console.log(tokenScopes)
+ // console.log(tokenScopes)
   for (const requiredScope of requiredScopes) {
     if (tokenScopes.includes(requiredScope)) {
       return;
@@ -40,37 +45,38 @@ function checkAnyScope(client, ...requiredScopes) {
 }
 
 aedes.authorizePublish = (client, packet, callback) => {
+
   if (client.token instanceof Object) {
     try {
-      checkAnyScope(client, 'aedes-write');
-      return callback(null);
-    } catch (error) {
-      return callback(error);
-    }
-  }
-
-  callback(new Error('Cannot publish'));
-};
-
-aedes.authorizeSubscribe = (client, subscription, callback) => {
-  if (client.token instanceof Object) {
-    try {
-      checkAnyScope(client, 'aedes-read');
-
-      return callback(null, subscription);
+      if ( client.token.scope === packet.topic ) return callback(null);
+      throw new Error("You are not authorized to publish on this message topic.")
     } 
     catch (error) {
       return callback(error);
     }
   }
-  
-  callback(new Error('Cannot subscribe'));
+  callback(new Error('Cannot Publish'));
+
 };
 
+aedes.authorizeSubscribe = (client, subscription, callback) => {
+    if (client.token instanceof Object) {
+          try {
+            if (client.token.scope ===  subscription.topic) return callback(null, subscription);
 
-// aedes.on('publish', function({topic, payload}) {
-//     console.log("broker routing published message", topic, payload?.toString());
-// });
+            throw new Error("You are not authorized to subscribe on this message topic.")
+          } 
+          catch (error) {
+            
+            return callback(error);
+          }
+        }
+        
+        callback(new Error('Cannot subscribe'));
+  }
+  
+
+
 
 
 // aedes.on('subscribe', (subscriptions, client) => {
@@ -90,7 +96,17 @@ aedes.authorizeSubscribe = (client, subscription, callback) => {
 server.on('connection', aedes.handle);
 server.on('error', console.error);
 
-aedes.on('clientError', (client, error) => console.error(`CLIENT ${error}`));
-aedes.on('connectionError', (client, error) => console.error(`ConneCTION ${error}`));
+aedes.on('clientError', (client, error) => {
+  console.error(`CLIENT ${error}`)
+  client.close(()=>{
+    console.log('successfully disconnected')
+  });
+});
+aedes.on('connectionError', (client, error) => {
+  console.error(`Connection ${error}`)
+  client.close(()=>{
+    console.log('successfully disconnected')
+  })
+ } );
 
 server.listen(1883);
